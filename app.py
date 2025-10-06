@@ -32,12 +32,9 @@ class FastOTPChecker:
         """Check single number quickly"""
         url = "https://pack.chromaawards.com/otp"
         
-        # Format phone number
+        # Clean and add + prefix
         clean_phone = ''.join(filter(str.isdigit, phone))
-        if clean_phone.startswith('225'):
-            formatted_phone = f"+{clean_phone}"
-        else:
-            formatted_phone = f"+225{clean_phone}"
+        formatted_phone = f"+{clean_phone}"
         
         payload = {"phoneNumber": formatted_phone}
         headers = self.get_headers()
@@ -166,25 +163,101 @@ class FastOTPChecker:
         
         return filename
 
+def get_numbers_from_user():
+    """Get phone numbers from terminal input"""
+    print("📱 PHONE NUMBER INPUT")
+    print("=" * 50)
+    print("Enter phone numbers (without +)")
+    print("You can enter:")
+    print("1. Single number: 917834567890")
+    print("2. Multiple numbers separated by space: 917834567890 918834567891")
+    print("3. Multiple numbers separated by comma: 917834567890,918834567891")
+    print("4. Range: 917834567000-917834567005")
+    print("5. Exit: type 'done' or 'exit'")
+    print("=" * 50)
+    print("ℹ️  Script will automatically add + prefix")
+    print("=" * 50)
+    
+    numbers = []
+    
+    while True:
+        user_input = input("\nEnter numbers: ").strip()
+        
+        if user_input.lower() in ['done', 'exit', 'quit', '']:
+            break
+        
+        if not user_input:
+            continue
+        
+        # Process different input formats
+        if '-' in user_input and len(user_input.split('-')) == 2:
+            # Range input
+            try:
+                start, end = user_input.split('-')
+                start = start.strip()
+                end = end.strip()
+                
+                # Convert to integers for range, but keep as strings
+                start_num = int(start)
+                end_num = int(end)
+                
+                if start_num <= end_num:
+                    for num in range(start_num, end_num + 1):
+                        numbers.append(str(num))
+                    print(f"✅ Added range: {start} to {end} ({end_num - start_num + 1} numbers)")
+                else:
+                    print("❌ Invalid range: start must be less than end")
+            except ValueError:
+                print("❌ Invalid range format. Use: start-end")
+        
+        elif ',' in user_input:
+            # Comma separated
+            new_numbers = [num.strip() for num in user_input.split(',') if num.strip()]
+            numbers.extend(new_numbers)
+            print(f"✅ Added {len(new_numbers)} numbers")
+        
+        elif ' ' in user_input:
+            # Space separated
+            new_numbers = [num.strip() for num in user_input.split() if num.strip()]
+            numbers.extend(new_numbers)
+            print(f"✅ Added {len(new_numbers)} numbers")
+        
+        else:
+            # Single number
+            numbers.append(user_input)
+            print(f"✅ Added 1 number")
+        
+        print(f"📊 Total numbers so far: {len(numbers)}")
+    
+    return numbers
+
 def main():
     checker = FastOTPChecker()
     
-    # Read numbers
-    try:
-        with open("numbers.txt", "r") as f:
-            numbers = [line.strip() for line in f.readlines() if line.strip()]
-    except FileNotFoundError:
-        print("❌ numbers.txt not found!")
-        return
+    # Get numbers from user input
+    numbers = get_numbers_from_user()
     
     if not numbers:
-        print("❌ No numbers found in numbers.txt!")
+        print("❌ No numbers entered!")
         return
     
-    print(f"📱 Loaded {len(numbers)} numbers")
+    print(f"\n📱 Ready to check {len(numbers)} numbers")
+    
+    # Show preview of numbers with + prefix
+    print("\n📋 Numbers to check (with + prefix):")
+    for i, num in enumerate(numbers[:5]):
+        print(f"  {i+1}. +{num}")
+    if len(numbers) > 5:
+        print(f"  ... and {len(numbers) - 5} more")
+    
+    # Confirm before starting
+    confirm = input("\nStart checking? (y/n): ").strip().lower()
+    if confirm not in ['y', 'yes', '']:
+        print("Cancelled!")
+        return
     
     # Run fast check
-    duration = checker.run_fast_check(numbers, max_workers=15)  # Increased workers for speed
+    duration = checker.run_fast_check(numbers, max_workers=15)
     
     # Show summary
     successful = [r for r in checker.results if r['success']]
@@ -201,7 +274,7 @@ def main():
     
     if successful:
         print(f"\n✅ SUCCESSFUL NUMBERS ({len(successful)}):")
-        for result in successful[:10]:  # Show first 10
+        for result in successful[:10]:
             print(f"  {result['phone']}")
         if len(successful) > 10:
             print(f"  ... and {len(successful) - 10} more")
